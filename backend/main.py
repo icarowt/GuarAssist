@@ -29,8 +29,12 @@ async def lifespan(app: FastAPI):
 
 # escrevas essas rotas da seguinte forma>
 # /api/analyze (Exemplo prático)
+# É necessário fazer o teste dessa rota pela documentação, segue a rota
+# /docs 
 app.include_router(analyze_router, prefix="/api")
+# Essa rota retorna todo o histórico de analises.
 app.include_router(history_router, prefix="/api")
+# essa rota retorna um resumo de analises e pragas encontradas.
 app.include_router(stats_router, prefix="/api")
 
 @app.get("/")
