@@ -26,19 +26,35 @@ export default function App() {
   }
 
   const captureFromCamera = useCallback(() => {
-    const imageSrc = webcamRef.current.getScreenshot()
-    if (!imageSrc) return
-    fetch(imageSrc)
-      .then(r => r.blob())
-      .then(blob => {
-        const captured = new File([blob], "captura.jpg", { type: "image/jpeg" })
-        setFile(captured)
-        setPreview(imageSrc)
-        setResult(null)
-        setError(null)
-        setMode("upload")
-      })
-  }, [webcamRef])
+  const imageSrc = webcamRef.current.getScreenshot()
+  if (!imageSrc) return
+
+  
+  setPreview(imageSrc)
+  setMode("upload")
+  setLoading(true)
+  setResult(null)
+  setError(null)
+
+  
+  fetch(imageSrc)
+    .then(r => r.blob())
+    .then(async (blob) => {
+      const captured = new File([blob], "captura.jpg", { type: "image/jpeg" })
+      setFile(captured)
+      
+      try {
+        
+        const data = await analyzeImage(captured)
+        setResult(data)
+      } catch {
+        setError("Erro ao analisar. Verifique se o servidor está rodando.")
+      } finally {
+        
+        setLoading(false)
+      }
+    })
+}, [webcamRef])
 
   const handleAnalyze = async () => {
     if (!file) return
@@ -89,12 +105,17 @@ export default function App() {
             <h1 className="hero-title">Analisar plantação<br />de guaraná</h1>
           </div>
 
-          <label className="cam-card">
-            <input type="file" accept="image/*" capture="environment" onChange={handleFileChange} hidden />
-            <div className="cam-icon-wrap">📷</div>
-            <p className="cam-label">Usar câmera</p>
-            <span className="cam-sub">Aponte para a folha ou fruto</span>
-          </label>
+                <div 
+          className="cam-card" 
+          onClick={() => {
+            setPage("analyze")
+            setMode("camera")
+          }}
+        >
+          <div className="cam-icon-wrap">📷</div>
+          <p className="cam-label">Usar câmera</p>
+          <span className="cam-sub">Aponte para a folha ou fruto</span>
+        </div>
 
           <div className="mini-grid">
             <label className="mini-card">
