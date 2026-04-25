@@ -26,35 +26,28 @@ export default function App() {
   }
 
   const captureFromCamera = useCallback(() => {
-  const imageSrc = webcamRef.current.getScreenshot()
-  if (!imageSrc) return
-
-  
-  setPreview(imageSrc)
-  setMode("upload")
-  setLoading(true)
-  setResult(null)
-  setError(null)
-
-  
-  fetch(imageSrc)
-    .then(r => r.blob())
-    .then(async (blob) => {
-      const captured = new File([blob], "captura.jpg", { type: "image/jpeg" })
-      setFile(captured)
-      
-      try {
-        
-        const data = await analyzeImage(captured)
-        setResult(data)
-      } catch {
-        setError("Erro ao analisar. Verifique se o servidor está rodando.")
-      } finally {
-        
-        setLoading(false)
-      }
-    })
-}, [webcamRef])
+    const imageSrc = webcamRef.current.getScreenshot()
+    if (!imageSrc) return
+    setPreview(imageSrc)
+    setMode("upload")
+    setLoading(true)
+    setResult(null)
+    setError(null)
+    fetch(imageSrc)
+      .then(r => r.blob())
+      .then(async (blob) => {
+        const captured = new File([blob], "captura.jpg", { type: "image/jpeg" })
+        setFile(captured)
+        try {
+          const data = await analyzeImage(captured)
+          setResult(data)
+        } catch {
+          setError("Erro ao analisar. Verifique se o servidor está rodando.")
+        } finally {
+          setLoading(false)
+        }
+      })
+  }, [webcamRef])
 
   const handleAnalyze = async () => {
     if (!file) return
@@ -105,17 +98,17 @@ export default function App() {
             <h1 className="hero-title">Analisar plantação<br />de guaraná</h1>
           </div>
 
-                <div 
-          className="cam-card" 
-          onClick={() => {
-            setPage("analyze")
-            setMode("camera")
-          }}
-        >
-          <div className="cam-icon-wrap">📷</div>
-          <p className="cam-label">Usar câmera</p>
-          <span className="cam-sub">Aponte para a folha ou fruto</span>
-        </div>
+          <div
+            className="cam-card"
+            onClick={() => {
+              setPage("analyze")
+              setMode("camera")
+            }}
+          >
+            <div className="cam-icon-wrap">📷</div>
+            <p className="cam-label">Usar câmera</p>
+            <span className="cam-sub">Aponte para a folha ou fruto</span>
+          </div>
 
           <div className="mini-grid">
             <label className="mini-card">
@@ -158,26 +151,43 @@ export default function App() {
             <h1 className="hero-title">Diagnóstico</h1>
           </div>
 
-          {mode === "camera" && (
+          {/* Câmera ao vivo */}
+          {mode === "camera" && !loading && !result && (
             <div className="webcam-wrap">
               <Webcam ref={webcamRef} screenshotFormat="image/jpeg" className="webcam" />
-              <button className="btn-primary" onClick={captureFromCamera}>Capturar</button>
+              <button className="btn-primary" onClick={captureFromCamera}>
+                📷 Capturar e Analisar
+              </button>
+              <button className="btn-secondary" onClick={() => setMode("upload")}>
+                Cancelar
+              </button>
             </div>
           )}
 
-          {mode === "upload" && preview && !result && (
+          {/* Preview da imagem */}
+          {mode === "upload" && preview && !result && !loading && (
             <div className="preview-wrap">
               <img src={preview} alt="preview" className="preview-img" />
               <div className="preview-actions">
                 <button className="btn-secondary" onClick={reset}>Trocar</button>
                 <button className="btn-primary" onClick={handleAnalyze} disabled={loading}>
-                  {loading ? "Analisando..." : "🔍 Analisar"}
+                  🔍 Analisar
                 </button>
               </div>
             </div>
           )}
 
-          {mode === "upload" && !preview && (
+          {/* Overlay de carregamento */}
+          {loading && (
+            <div className="analyzing-overlay">
+              <div className="spinner-large" />
+              <p>Analisando imagem...</p>
+              <span>Aguarde um momento</span>
+            </div>
+          )}
+
+          {/* Sem imagem ainda */}
+          {mode === "upload" && !preview && !loading && (
             <div className="upload-area">
               <label className="upload-label">
                 <input type="file" accept="image/*" onChange={handleFileChange} hidden />
