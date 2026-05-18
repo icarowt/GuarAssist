@@ -14,7 +14,10 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],  # URL do React dev server
+    allow_origins=[
+    "http://localhost:5173",
+    "https://guar-assist.vercel.app",
+],  # URL do React dev server
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
