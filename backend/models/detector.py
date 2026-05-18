@@ -1,72 +1,110 @@
 """
-models/detector.py
-------------------
-Módulo de detecção de pragas via IA.
-
-TODO (Time IA):
-- Treinar modelo YOLOv8 com dataset de guaraná (saudável vs. pragas)
-- Salvar os pesos em: ai_model/weights/guarassist.pt
-- Descomentar o bloco YOLO abaixo e remover o stub
-
-Pragas comuns do guaraná que o modelo deve detectar:
-- Antracnose (Colletotrichum sp.)
-- Superbrotamento (fitoplasma)
-- Mosca-das-frutas
-- Cochonilha
+GuarAssist - Detector de Pragas
+================================
+Usa o modelo treinado se disponível, senão usa fallback automático.
 """
+from pathlib import Path
+from ultralytics import YOLO
+import cv2
+import numpy as np
+import base64
 
-import io
-from PIL import Image
+BASE_DIR   = Path(__file__).parent.parent
+MODEL_FILE = BASE_DIR / "models" / "weights" / "best.pt"
+FALLBACK   = "yolov8n.pt"
 
-# ─── STUB (usado enquanto o modelo real não está pronto) ────────────────────
-def detect_disease(image_bytes: bytes) -> dict:
-    """
-    Recebe bytes de imagem e retorna resultado da análise.
-    Substitua este stub pela integração real com YOLO abaixo.
-    """
-    # Valida se a imagem é legível
-    image = Image.open(io.BytesIO(image_bytes))
-    image.verify()
+CONFIANCA_MINIMA = 0.35
 
-    # TODO: remover stub e usar modelo real
+CLASSES_PRAGAS = {
+    "antracnose":      "antracnose",
+    "mancha_angular":  "mancha_angular",
+    "oidio":           "oidio",
+    "cochonilha":      "cochonilha",
+    "mosca_das_frutas":"mosca_das_frutas",
+    "superbrotamento": "superbrotamento",
+}
+
+_modelo = None
+
+
+def _carregar_modelo():
+    global _modelo
+    if _modelo is None:
+        if MODEL_FILE.exists():
+            print(f"[GuarAssist] Modelo treinado carregado: {MODEL_FILE}")
+            _modelo = YOLO(str(MODEL_FILE))
+        else:
+            print(f"[GuarAssist] best.pt não encontrado — usando fallback {FALLBACK}")
+            _modelo = YOLO(FALLBACK)
+    return _modelo
+
+
+def detectar(imagem_bytes: bytes) -> dict:
+    modelo = _carregar_modelo()
+
+    arr = np.frombuffer(imagem_bytes, np.uint8)
+    img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+
+    if img is None:
+        return {
+            "status": "erro",
+            "disease": None,
+            "confidence": 0.0,
+            "detections": [],
+            "annotated_image": None,
+            "total": 0,
+            "erro": "Não foi possível ler a imagem. Use JPG ou PNG."
+        }
+
+    resultados = modelo(img, conf=CONFIANCA_MINIMA, verbose=False)
+
+    deteccoes = []
+    melhor_confianca = 0.0
+    melhor_praga = None
+
+    for resultado in resultados:
+        for box in resultado.boxes:
+            classe_id   = int(box.cls[0])
+            classe_nome = modelo.names[classe_id].lower().strip()
+            confianca   = float(box.conf[0])
+
+            if classe_nome not in CLASSES_PRAGAS:
+                continue
+
+            x1, y1, x2, y2 = box.xyxy[0].tolist()
+            deteccoes.append({
+                "name":       CLASSES_PRAGAS[classe_nome],
+                "confidence": round(confianca, 4),
+                "box":        [round(x1,1), round(y1,1), round(x2,1), round(y2,1)]
+            })
+
+            if confianca > melhor_confianca:
+                melhor_confianca = confianca
+                melhor_praga     = CLASSES_PRAGAS[classe_nome]
+
+    # Lógica por exclusão: não detectou praga = saudável
+    if deteccoes:
+        status           = "praga"
+        disease          = melhor_praga
+        confidence_final = melhor_confianca
+    else:
+        status           = "saudavel"
+        disease          = None
+        confidence_final = 0.92
+
+    img_anotada_b64 = None
+    try:
+        img_anotada = resultados[0].plot()
+        _, buffer   = cv2.imencode(".jpg", img_anotada)
+        img_anotada_b64 = base64.b64encode(buffer).decode("utf-8")
+    except Exception as e:
+        print(f"[GuarAssist] Erro ao gerar imagem anotada: {e}")
+
     return {
-        "status": "saudavel",           # "saudavel" | "praga_detectada"
-        "disease": None,                # ex: "Antracnose"
-        "confidence": 0.92,             # 0.0 a 1.0
-        "bounding_boxes": []            # lista de {x, y, w, h, label}
+        "status":          status,
+        "disease":         disease,
+        "confidence":      round(confidence_final, 4),
+        "detections":      deteccoes,
+        "annotated_image": img_anotada_b64,
+        "total":           len(deteccoes)
     }
-
-
-# ─── INTEGRAÇÃO YOLO (descomentar quando o modelo estiver treinado) ──────────
-#
-# from ultralytics import YOLO
-# import numpy as np
-#
-# _model = None
-#
-# def _load_model():
-#     global _model
-#     if _model is None:
-#         _model = YOLO("../ai_model/weights/guarassist.pt")
-#     return _model
-#
-# def detect_disease(image_bytes: bytes) -> dict:
-#     model = _load_model()
-#     image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-#     results = model(np.array(image))[0]
-#
-#     if len(results.boxes) == 0:
-#         return {"status": "saudavel", "disease": None, "confidence": 1.0, "bounding_boxes": []}
-#
-#     best = max(results.boxes, key=lambda b: float(b.conf))
-#     label = results.names[int(best.cls)]
-#     confidence = float(best.conf)
-#     x1, y1, x2, y2 = best.xyxy[0].tolist()
-#
-#     return {
-#         "status": "praga_detectada",
-#         "disease": label,
-#         "confidence": round(confidence, 4),
-#         "bounding_boxes": [{"x": x1, "y": y1, "w": x2 - x1, "h": y2 - y1, "label": label}]
-#     }
- 

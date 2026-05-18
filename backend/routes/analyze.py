@@ -1,67 +1,66 @@
+"""
+GuarAssist - Rota de Análise de Imagens
+"""
 from fastapi import APIRouter, UploadFile, File, HTTPException
-from models.detector import detect_disease
-from database.database import save_analysis
 from PIL import Image
-from io import BytesIO
-import uuid, time
+import io
+import time
+
+from models.detector import detectar
+from database.database import save_analysis
 
 router = APIRouter()
 
-MAX_SIZE = 10 * 1024 * 1024
-ALLOWED_FORMATS = ["JPEG", "PNG", "WEBP"]
+MAX_FILE_SIZE = 10 * 1024 * 1024
+FORMATOS_PERMITIDOS = {"image/jpeg", "image/jpg", "image/png", "image/webp"}
+EXTENSOES_PERMITIDAS = {"jpg", "jpeg", "png", "webp"}
+
 
 @router.post("/analyze")
 async def analyze_image(file: UploadFile = File(...)):
-    """
-    Recebe uma imagem da planta de guaraná e retorna o diagnóstico.
+    # Validação de tipo MIME
+    if file.content_type not in FORMATOS_PERMITIDOS:
+        raise HTTPException(status_code=400, detail="Formato não suportado. Use JPG, PNG ou WEBP.")
 
-    Retorno:
-    - status: "saudavel" | "praga_detectada"
-    - disease: nome da praga (ou None)
-    - confidence: porcentagem de confiança (0.0 a 1.0)
-    - analysis_id: ID para consulta no histórico
-    """
+    # Validação de extensão
+    ext = file.filename.split(".")[-1].lower() if "." in file.filename else ""
+    if ext not in EXTENSOES_PERMITIDAS:
+        raise HTTPException(status_code=400, detail="Extensão inválida. Use .jpg, .png ou .webp")
 
-    if not file:
-        raise HTTPException(status_code=400, detail="Nenhum arquivo foi enviado.")
-    
-    image_bytes = await file.read()
+    # Lê os bytes
+    conteudo = await file.read()
 
-    if len(image_bytes) > MAX_SIZE:
-        raise HTTPException(status_code=400, detail="A imagem passou do tamanho maximo de 10MB")
+    # Validação de tamanho
+    if len(conteudo) > MAX_FILE_SIZE:
+        raise HTTPException(status_code=400, detail="Arquivo grande demais. Máximo: 10 MB.")
 
+    # Valida se é imagem real
     try:
-        image = Image.open(BytesIO(image_bytes))
-        image.verify()
-        image = Image.open(BytesIO(image_bytes))
+        img_pil = Image.open(io.BytesIO(conteudo))
+        img_pil.verify()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Arquivo corrompido ou não é uma imagem válida.")
 
-    except  Exception:
-        raise HTTPException(status_code=400, detail="O arquivo enviado não é uma imagem válida!")
-    
-    if image.format not in ALLOWED_FORMATS:
-        raise HTTPException(status_code=400, detail="O formato do arquivo não é permitido. Use somente JPEG, PNG e WEBP")
+    # Roda o detector
+    resultado = detectar(conteudo)
 
-    try:
-        result = detect_disease(image_bytes)
-        
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erro no modelo de IA: {str(e)}")
+    if resultado.get("status") == "erro":
+        raise HTTPException(status_code=400, detail=resultado.get("erro"))
 
-    analysis_id = str(uuid.uuid4())
+    # Adiciona timestamp
     timestamp = int(time.time())
+    resultado["timestamp"] = timestamp
 
-    save_analysis({
-        "id": analysis_id,
-        "timestamp": timestamp,
-        "filename": file.filename,
-        "status": result["status"],
-        "disease": result["disease"],
-        "confidence": result["confidence"],
-    })
+    # Salva no banco usando os nomes corretos do database.py
+    try:
+        save_analysis({
+            "timestamp": timestamp,
+            "filename": file.filename,
+            "status": resultado["status"],
+            "disease": resultado.get("disease"),
+            "confidence": resultado.get("confidence", 0.0),
+        })
+    except Exception as e:
+        print(f"[GuarAssist] Erro ao salvar no banco: {e}")
 
-    return {
-        "analysis_id": analysis_id,
-        "timestamp": timestamp,
-        **result
-    }
- 
+    return resultado

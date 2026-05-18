@@ -605,7 +605,7 @@ export default function App() {
           )}
 
           {mode === "upload" && !preview && !loading && !result && (
-            <>
+            <div style={{ width: "100%" }}>
               <label className="upload-zone">
                 <input type="file" accept="image/*" onChange={handleFileChange} hidden />
                 <div className="upload-icon">🖼️</div>
@@ -615,7 +615,7 @@ export default function App() {
               <div style={{ marginTop: 16 }}>
                 <button className="btn-secondary" onClick={() => setMode("camera")}>📷 Usar câmera</button>
               </div>
-            </>
+            </div>
           )}
 
           {loading && (
