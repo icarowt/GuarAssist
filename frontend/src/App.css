@@ -64,9 +64,8 @@ body {
 
 .canvas {
   padding: 28px 40px 80px;
-  max-width: 1480px;
   width: 100%;
-  margin: 0 auto;
+  overflow-x: hidden;
 }
 
 /* SIDEBAR */
@@ -869,8 +868,8 @@ body {
 
 /* ANALYSIS PAGE */
 .analysis-container {
-  max-width: 900px;
-  margin: 0 auto;
+  max-width: 100%;
+  margin: 0;
   padding: 20px 0;
 }
 
@@ -895,6 +894,12 @@ body {
   cursor: pointer;
   background: var(--bg-elev);
   transition: border-color .2s, background .2s;
+  width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
 }
 .upload-zone:hover {
   border-color: var(--leaf);
