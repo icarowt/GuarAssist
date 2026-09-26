@@ -29,12 +29,9 @@ from agent import config
 VOZ_MOTOR = os.getenv("VOZ_MOTOR", "gemini").strip().lower()
 VOZ_MODELO = os.getenv("VOZ_MODELO", "gemini-3.8-flash-tts").strip()
 VOZ_NOME = os.getenv("VOZ_NOME", "Puck").strip()
-VOZ_ESTILO = os.getenv(
-    "VOZ_ESTILO",
-    "Fale em português do Brasil como um técnico agrícola do interior do Amazonas, "
-    "amigo do produtor: tom calmo, acolhedor e confiante, ritmo tranquilo, sem pressa, "
-    "como numa conversa no quintal. Leia exatamente o texto a seguir",
-).strip()
+# Esse modelo lê tudo em voz alta, então por padrão NÃO mandamos instrução de estilo.
+# O jeito de falar vem da voz escolhida (VOZ_NOME).
+VOZ_ESTILO = os.getenv("VOZ_ESTILO", "").strip()
 VOZ_MAC = os.getenv("VOZ_MAC", "Luciana").strip()
 
 _EMOJI = re.compile(
@@ -91,7 +88,7 @@ def _gemini(fala):
     for _ in range(2):  # uma nova tentativa se estiver ocupado
         try:
             resp = llm.cliente().models.generate_content(
-                model=VOZ_MODELO, contents=f"{VOZ_ESTILO}:\n\n{fala}", config=cfg
+                model=VOZ_MODELO, contents=(f"{VOZ_ESTILO}:\n\n{fala}" if VOZ_ESTILO else fala), config=cfg
             )
             pcm = resp.candidates[0].content.parts[0].inline_data.data
             break
