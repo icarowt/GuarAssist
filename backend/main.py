@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from routes.analyze import router as analyze_router
 from routes.history import router as history_router
 from routes.stats import router as stats_router
+from routes.agente import router as agente_router
 from database.database import init_db
 from contextlib import asynccontextmanager
 
@@ -39,6 +40,8 @@ app.include_router(analyze_router, prefix="/api")
 app.include_router(history_router, prefix="/api")
 # essa rota retorna um resumo de analises e pragas encontradas.
 app.include_router(stats_router, prefix="/api")
+# Ocorrências registradas pelo agente (Telegram/WhatsApp) para o mapa do painel
+app.include_router(agente_router, prefix="/api")
 
 @app.get("/")
 def root():

@@ -1,0 +1,9 @@
+
+# Segredos e dados locais
+.env
+*.env
+!.env.example
+*.db
+.DS_Store
+__pycache__/
+.venv/
