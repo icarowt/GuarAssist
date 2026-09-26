@@ -142,7 +142,7 @@ Documentação em `http://localhost:8000/docs`.
 
 ## Equipe
 
-Icaro Costa ([@icarowt](https://github.com/icarowt)), Gabriel Maximiano, Daniel Alves Pinheiro, Eliel Alves Pinheiro e M. S. Ribeiro.
+Icaro Costa ([@icarowt](https://github.com/icarowt))
 
 ## Licença
 
