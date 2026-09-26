@@ -66,9 +66,27 @@ def diagnosticar_foto(ctx: Contexto):
     from models.detector import detectar  # import tardio: YOLO é pesado
     from agent import llm, verificador
 
-    # YOLO e verificador rodam em paralelo (não soma o tempo dos dois)
+    from agent import imagem
+
+    # ── 0. Qualidade da foto: rejeita o que não tem conserto, corrige de leve o resto ──
+    qualidade = imagem.analisar(ctx.foto)
+    if not qualidade["valida"]:
+        ctx.diagnostico = {
+            "veredito": "rejeitada",
+            "motivo": qualidade["dica"],
+            "praga": "indefinida", "praga_nome": None, "confianca": None, "severidade": "nenhuma",
+        }
+        return {**ctx.diagnostico, "instrucao": INSTRUCOES["rejeitada"] + " Use exatamente esta dica: " + qualidade["dica"],
+                "qualidade": qualidade["problemas"]}
+
+    foto_modelo = ctx.foto
+    if qualidade["precisa_melhorar"]:
+        foto_modelo = imagem.melhorar(ctx.foto, qualidade["corrigiveis"])
+        print(f"[imagem] foto melhorada: {qualidade['corrigiveis']} {qualidade['metricas']}")
+
+    # YOLO (foto corrigida) e verificador (foto ORIGINAL) rodam em paralelo
     with ThreadPoolExecutor(max_workers=2) as ex:
-        f_yolo = ex.submit(detectar, ctx.foto)
+        f_yolo = ex.submit(detectar, foto_modelo)
         f_ver = ex.submit(verificador.verificar, ctx.foto, llm.cliente(), config.GEMINI_MODEL) if llm.disponivel() else None
         resultado = f_yolo.result()
         ver = f_ver.result() if f_ver else None
@@ -117,6 +135,10 @@ def diagnosticar_foto(ctx: Contexto):
 
     retorno = dict(ctx.diagnostico)
     retorno["instrucao"] = INSTRUCOES[veredito]
+    if qualidade["precisa_melhorar"]:
+        retorno["foto_melhorada"] = qualidade["corrigiveis"]
+        retorno["instrucao"] += (" A foto estava ruim (" + ", ".join(qualidade["corrigiveis"]) +
+                                 ") e foi corrigida automaticamente; mencione isso em meia frase e dê uma dica rápida de como tirar a próxima.")
     retorno["modelo_yolo"] = {
         "achou_praga": y_praga,
         "praga": resultado.get("disease"),
@@ -348,6 +370,12 @@ def consultar_regiao(ctx: Contexto):
 # ══════════════════════════════════════════════════════════════════════════════
 
 def agendar_retorno(ctx: Contexto, mensagem: str = None, dias: int = 3):
+    # Regra no código: só acompanha foto de guaraná com problema (confirmado, provável, suspeita...).
+    # Pergunta de texto, foto saudável ou rejeitada não geram retorno.
+    d = ctx.diagnostico or {}
+    if d.get("veredito") not in VEREDITOS_COM_PROBLEMA:
+        return {"agendado": False,
+                "motivo": "Retorno só é agendado quando uma foto de guaraná mostra problema. Não mencione retorno."}
     praga = (ctx.diagnostico or {}).get("praga_nome", "a planta")
     texto = mensagem or (
         f"Oi! Passando pra saber como estão as plantas depois daquela {praga}. "
